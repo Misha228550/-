@@ -17,7 +17,11 @@ Gravitazya = 0.75 #Гравитация
 #Действия игрока
 moving_left = False
 moving_right = False
+shoot = False
 
+#загрузка картинки
+#ПУЛЯ
+Pula_img = pygame.image.load("img/icons/bullet.png")
 BackRound = (32,74,209) #Заливка фона
 RET = (255,0,0) #Цвет красный
 
@@ -57,6 +61,7 @@ class Soldier(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.center = (x,y)
 
+
     def updata_animations(self):
         #оБНОВЛЕНИЕ АНИМАЦИЙ
         animation_cooldown = 100
@@ -82,6 +87,10 @@ class Soldier(pygame.sprite.Sprite):
     def draw(self):
         screen.blit(pygame.transform.flip(self.image,self.flip,False),self.rect)
         #pygame.draw.rect(screen,RET,(self.rect.x,self.rect.y, self.rect.width,self.rect.height),3)
+
+    def shoot(self):
+        bullet = puli(self.rect.centerx + (self.rect.width * 0.6 * self.direction), self.rect.centery,self.direction)
+        Pulia_group.add(bullet)
 
     #Движение
     def move(self,moving_left,moving_right):
@@ -113,15 +122,31 @@ class Soldier(pygame.sprite.Sprite):
             dy = 400 - self.rect.bottom
             self.jump_in_air = False
 
-
-
-
-
-
-
         #Обновление позиции игрока
         self.rect.x += dx
         self.rect.y += dy
+
+#Класс пули
+class puli(pygame.sprite.Sprite):
+    def __init__(self, x, y, direction):
+        pygame.sprite.Sprite.__init__(self)
+        self.speed = 5
+        self.image = Pula_img
+        self.rect = self.image.get_rect()
+        self.rect.center = (x,y)
+        self.direction = direction
+
+    def update(self):
+        #Движение пуль
+        self.rect.x += self.speed * self.direction
+        #ЕПроверить зашла ли пуля за экран
+        if self.rect.x < 0 or self.rect.x > 800:
+            self.kill
+
+
+
+ #Создание групп спрайтов
+Pulia_group = pygame.sprite.Group()
 
 #Персонаж
 player = Soldier("player",200,300,2,3)
@@ -135,8 +160,15 @@ while run:
     player.draw()
     Zlodey.draw()
 
+    #Обновление и отрисовка групп
+    Pulia_group.update()
+    Pulia_group.draw(screen)
+
     #Обновление действий игрока
     if player.alive: #Если игрок жив
+        #Выстрелы
+        if shoot:
+            player.shoot()
         if player.jump_in_air:
             player.updata_actiones(2)
         elif moving_left or moving_right:
@@ -153,12 +185,16 @@ while run:
         if event.type == pygame.QUIT:
             pygame.quit()
             quit()
+
         #Проверка нажатия клавиш
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_a:
                 moving_left = True
             if event.key == pygame.K_d:
                 moving_right = True
+            if event.key == pygame.K_SPACE:
+                shoot = True
+
             if event.key == pygame.K_w and player.alive:
                 player.jump = True
             if event.key == pygame.K_ESCAPE:
@@ -169,6 +205,8 @@ while run:
                 moving_left = False
             if event.key == pygame.K_d:
                 moving_right = False
+            if event.key == pygame.K_SPACE:
+                shoot = False
             #if event.key == pygame.K_w and player.alive:
                 #player.jump = False
             if event.key == pygame.K_ESCAPE:
