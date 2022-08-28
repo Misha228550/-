@@ -33,7 +33,7 @@ def draw_backroundt():
 
 #Класс игрока
 class Soldier(pygame.sprite.Sprite):
-    def __init__(self,carector_tipe,x,y,scale,speed):
+    def __init__(self,carector_tipe,x,y,scale,speed, ammo):
         # Загрузка изображения персонажа
         pygame.sprite.Sprite.__init__(self)
         self.jump = False
@@ -42,13 +42,18 @@ class Soldier(pygame.sprite.Sprite):
         self.vel_y = 0
         self.carector_tipe = carector_tipe
         self.speed=speed
+        self.ammo = ammo
+        self.star_ammo = ammo
+        self.health = 100
+        self.max_health = self.health
+        self.shoot_cooldown = 0
         self.direction = 1
         self.flip = False
         self.animation_list = []
         self.frame_index=0
         self.action = 0
         self.updata_time = pygame.time.get_ticks()
-        Animetion_Types = ["Idle","Run","Jump"]
+        Animetion_Types = ["Idle","Run","Jump","Death"]
         for animation in Animetion_Types:
             tenp_list = []
             num_off_frames = len(os.listdir(f"img/{self.carector_tipe}/{animation}"))
@@ -71,7 +76,10 @@ class Soldier(pygame.sprite.Sprite):
             self.updata_time = pygame.time.get_ticks()
 
             if self.frame_index >= len(self.animation_list[self.action]):
-                self.frame_index = 0
+                if self.action == 3:
+                    self.frame_index=len(self.animation_list[self.action]) -1
+                else:
+                    self.frame_index = 0
 
     def updata_actiones(self,new_action):
         if new_action != self.action:
@@ -89,8 +97,22 @@ class Soldier(pygame.sprite.Sprite):
         #pygame.draw.rect(screen,RET,(self.rect.x,self.rect.y, self.rect.width,self.rect.height),3)
 
     def shoot(self):
-        bullet = puli(self.rect.centerx + (self.rect.width * 0.6 * self.direction), self.rect.centery,self.direction)
-        Pulia_group.add(bullet)
+        if self.shoot_cooldown == 0 and self.ammo > 0:
+            self.shoot_cooldown = 20
+            bullet = puli(self.rect.centerx + (self.rect.width * 0.6 * self.direction), self.rect.centery,self.direction)
+            Pulia_group.add(bullet)
+            self.ammo -=1
+
+
+
+    def update(self):
+        self.updata_animations()
+        self.check_alive()
+
+        #Обновление задержки
+        if self.shoot_cooldown >0:
+            self.shoot_cooldown -=1
+
 
     #Движение
     def move(self,moving_left,moving_right):
@@ -126,6 +148,15 @@ class Soldier(pygame.sprite.Sprite):
         self.rect.x += dx
         self.rect.y += dy
 
+    def check_alive(self):
+        if self.health <= 0:
+            self.health = 0
+            self.alive =False
+            self.speed = 0
+            self.shoot = 0
+            self.updata_actiones(3)
+
+
 #Класс пули
 class puli(pygame.sprite.Sprite):
     def __init__(self, x, y, direction):
@@ -143,14 +174,24 @@ class puli(pygame.sprite.Sprite):
         if self.rect.x < 0 or self.rect.x > 800:
             self.kill
 
+        #Проверить столкновение с персонажами
+        if pygame.sprite.spritecollide(player, Pulia_group, False):
+            if player.alive:
+                player.health -= 5
+                self.kill()
 
+        if pygame.sprite.spritecollide(Zlodey, Pulia_group, False):
+            if Zlodey.alive:
+                Zlodey.health -= 5
+                print(Zlodey.health)
+                self.kill()
 
  #Создание групп спрайтов
 Pulia_group = pygame.sprite.Group()
 
 #Персонаж
-player = Soldier("player",200,300,2,3)
-Zlodey = Soldier("enemy",300,300,2,3)
+player = Soldier("player",200,300,2,3,60)
+Zlodey = Soldier("enemy",300,300,2,3,60)
 
 
 run = True
@@ -177,7 +218,8 @@ while run:
             player.updata_actiones(0)
 
     player.move(moving_left, moving_right)
-    player.updata_animations()
+    player.update()
+    Zlodey.update()
 
 
 
@@ -194,6 +236,8 @@ while run:
                 moving_right = True
             if event.key == pygame.K_SPACE:
                 shoot = True
+            if event.key == pygame.K_r:
+                player.alive == True
 
             if event.key == pygame.K_w and player.alive:
                 player.jump = True
@@ -209,6 +253,9 @@ while run:
                 shoot = False
             #if event.key == pygame.K_w and player.alive:
                 #player.jump = False
+            if event.key == pygame.K_r:
+                player.alive == False
+                player.updata_actiones(3)
             if event.key == pygame.K_ESCAPE:
                 pygame.quit()
                 quit()
