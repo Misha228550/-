@@ -14,16 +14,28 @@ FPS = 60
 
 Gravitazya = 0.75 #Гравитация
 
+zvuksmerty = []
+
 #Действия игрока
 moving_left = False
 moving_right = False
 shoot = False
+grenate = False
+grenate_throw =False
 
 #загрузка картинки
 #ПУЛЯ
 Pula_img = pygame.image.load("img/icons/bullet.png")
+#Граната
+Granete_igm = pygame.image.load("img/icons/grenade.png")
+
 BackRound = (32,74,209) #Заливка фона
+
 RET = (255,0,0) #Цвет красный
+
+Fon1 = pygame.mixer.Sound("sounds/Fon1.mp3")
+Fon1.play()
+death1 = pygame.mixer.Sound("sounds/Dead.mp3")
 
 def draw_backroundt():
     screen.fill(BackRound)
@@ -33,7 +45,7 @@ def draw_backroundt():
 
 #Класс игрока
 class Soldier(pygame.sprite.Sprite):
-    def __init__(self,carector_tipe,x,y,scale,speed, ammo):
+    def __init__(self,carector_tipe,x,y,scale,speed, ammo, grenades):
         # Загрузка изображения персонажа
         pygame.sprite.Sprite.__init__(self)
         self.jump = False
@@ -44,6 +56,7 @@ class Soldier(pygame.sprite.Sprite):
         self.speed=speed
         self.ammo = ammo
         self.star_ammo = ammo
+        self.grenades = grenades
         self.health = 100
         self.max_health = self.health
         self.shoot_cooldown = 0
@@ -139,7 +152,7 @@ class Soldier(pygame.sprite.Sprite):
 
         self.vel_y += Gravitazya
         dy += self.vel_y
-
+        #Проверка столкновения с полом
         if self.rect.bottom + dy > 400:
             dy = 400 - self.rect.bottom
             self.jump_in_air = False
@@ -155,6 +168,7 @@ class Soldier(pygame.sprite.Sprite):
             self.speed = 0
             self.shoot = 0
             self.updata_actiones(3)
+            death1.play(4)
 
 
 #Класс пули
@@ -186,12 +200,49 @@ class puli(pygame.sprite.Sprite):
                 print(Zlodey.health)
                 self.kill()
 
+class Grenade(pygame.sprite.Sprite):
+    def __init__(self, x, y, direction):
+        pygame.sprite.Sprite.__init__(self)
+        self.timer = 100
+        self.vel_y = -11
+        self.speed = 7
+        self.image = Granete_igm
+        self.rect = self.image.get_rect()
+        self.rect.center = (x,y)
+        self.direction = direction
+    def update(self):
+        self.vel_y += Gravitazya
+
+        dx = self.speed * self.direction
+        dy = self.vel_y
+
+        if self.rect.bottom + dy > 400:
+            dy = 400 - self.rect.bottom
+            self.jump_in_air = False
+            self.speed = 0
+        #Проверка столкновения со стеной
+        if self.rect.x + dx <= 0:
+            self.direction *= -1
+        elif self.rect.x + dx >= 800:
+            self.direction *= -1
+
+        if self.rect.y + dy >= 600:
+            self.direction *= -1
+        elif self.rect.y + dy <= 0:
+            self.direction *= -1
+
+        self.rect.x += dx
+        self.rect.y += dy
+
+
+
  #Создание групп спрайтов
 Pulia_group = pygame.sprite.Group()
+Grenade_group = pygame.sprite.Group()
 
 #Персонаж
-player = Soldier("player",200,300,2,3,60)
-Zlodey = Soldier("enemy",300,300,2,3,60)
+player = Soldier("player",200,300,2,3,60,50000)
+Zlodey = Soldier("enemy",300,300,2,3,120,0)
 
 
 run = True
@@ -203,13 +254,22 @@ while run:
 
     #Обновление и отрисовка групп
     Pulia_group.update()
+    Grenade_group.update()
     Pulia_group.draw(screen)
+    Grenade_group.draw(screen)
 
     #Обновление действий игрока
     if player.alive: #Если игрок жив
         #Выстрелы
         if shoot:
             player.shoot()
+        elif grenate and grenate_throw == False and player.grenades > 0:
+            grenate = Grenade(player.rect.centerx + (0.5 * player.rect.size[0] * player.direction),\
+                              player.rect.top, player.direction)
+            Grenade_group.add(grenate)
+            player.grenades -= 1
+
+            grenate_throw = True
         if player.jump_in_air:
             player.updata_actiones(2)
         elif moving_left or moving_right:
@@ -237,13 +297,15 @@ while run:
             if event.key == pygame.K_SPACE:
                 shoot = True
             if event.key == pygame.K_r:
-                player.alive == True
-
+                player.alive = True
+            if event.key == pygame.K_m:
+                player.alive = True
+            if event.key == pygame.K_2:
+                grenate = True
+            if event.key == pygame.K_9:
+                Pulia_group + 0
             if event.key == pygame.K_w and player.alive:
                 player.jump = True
-            if event.key == pygame.K_ESCAPE:
-                pygame.quit()
-                quit()
         elif event.type == pygame.KEYUP:
             if event.key == pygame.K_a:
                 moving_left = False
@@ -254,11 +316,15 @@ while run:
             #if event.key == pygame.K_w and player.alive:
                 #player.jump = False
             if event.key == pygame.K_r:
-                player.alive == False
+                player.alive = False
+                player.speed = 0
                 player.updata_actiones(3)
-            if event.key == pygame.K_ESCAPE:
-                pygame.quit()
-                quit()
+            if event.key == pygame.K_2:
+                grenate = False
+                grenate_throw = False
+            if event.key == pygame.K_m:
+                player.alive = True
+                player.speed = 3
         # KEYUP - отжатие
         # KEYDOWN - нажатие
     #Обновление экрана
