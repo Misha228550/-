@@ -13,6 +13,7 @@ clock = pygame.time.Clock()
 FPS = 60
 
 Gravitazya = 0.75 #Гравитация
+TILE_SIZE = 100
 
 zvuksmerty = []
 
@@ -34,7 +35,7 @@ BackRound = (32,74,209) #Заливка фона
 RET = (255,0,0) #Цвет красный
 
 Fon1 = pygame.mixer.Sound("sounds/Fon1.mp3")
-Fon1.play()
+#Fon1.play()
 death1 = pygame.mixer.Sound("sounds/Dead.mp3")
 
 def draw_backroundt():
@@ -186,7 +187,7 @@ class puli(pygame.sprite.Sprite):
         self.rect.x += self.speed * self.direction
         #ЕПроверить зашла ли пуля за экран
         if self.rect.x < 0 or self.rect.x > 800:
-            self.kill
+            self.kill()
 
         #Проверить столкновение с персонажами
         if pygame.sprite.spritecollide(player, Pulia_group, False):
@@ -194,11 +195,13 @@ class puli(pygame.sprite.Sprite):
                 player.health -= 5
                 self.kill()
 
-        if pygame.sprite.spritecollide(Zlodey, Pulia_group, False):
-            if Zlodey.alive:
-                Zlodey.health -= 5
-                print(Zlodey.health)
-                self.kill()
+        for Zlodey in Zlodeyskaya_Grupa:
+            if pygame.sprite.spritecollide(Zlodey, Pulia_group, False):
+                if Zlodey.alive:
+                    Zlodey.health -= 5
+                    print(Zlodey.health)
+                    self.kill()
+
 
 class Grenade(pygame.sprite.Sprite):
     def __init__(self, x, y, direction):
@@ -234,29 +237,84 @@ class Grenade(pygame.sprite.Sprite):
         self.rect.x += dx
         self.rect.y += dy
 
+        self.timer -= 1
+        if self.timer == 0:
+            self.kill()
+            explosion = Explosion(self.rect.x,self.rect.y, 5)
+            explosion_group.add(explosion)
+            #Нанести урон, если кто-либо в области поражения
+            if abs(self.rect.centerx - player.rect.centerx) < TILE_SIZE*2 and abs(self.rect.centery - player.rect.centery) < TILE_SIZE*2:
+                player.health -= 50
+            for Zlodey in Zlodeyskaya_Grupa:
+                if abs(self.rect.centerx - Zlodey.rect.centerx) < TILE_SIZE * 2 and abs(self.rect.centery - Zlodey.rect.centery) < TILE_SIZE * 2:
+                    Zlodey.health -= 50
+
+
+class Explosion(pygame.sprite.Sprite):
+    def __init__(self, x, y, scale):
+        pygame.sprite.Sprite.__init__(self)
+        self.timer = 100
+        self.image = Granete_igm
+        self.rect = self.image.get_rect()
+        self.rect.center = (x,y)
+        self.images = []
+        for num in range(1,6):
+            img = pygame.image.load(f'img/explsn/exp{num}.png').convert_alpha()
+            ing = pygame.transform.scale(img, (img.get_width()*scale, img.get_height()*scale))
+            self.images.append(img)
+        self.frame_index = 0
+        self.image = self.images[self.frame_index]
+        self.rect.center = (x,y)
+        self.counter = 0
+
+    def update(self):
+        EXPLOSION_SPEED = 4
+
+
+        self.counter += 1
+        if self.counter >= EXPLOSION_SPEED:
+            self.counter = 0
+            self.frame_index += 1
+
+        if self.frame_index >= len(self.images):
+            self.kill()
+        else:
+            self.image = self.images[self.frame_index]
+
+
 
 
  #Создание групп спрайтов
+Zlodeyskaya_Grupa = pygame.sprite.Group()
 Pulia_group = pygame.sprite.Group()
 Grenade_group = pygame.sprite.Group()
+explosion_group = pygame.sprite.Group()
 
 #Персонаж
 player = Soldier("player",200,300,2,3,60,50000)
-Zlodey = Soldier("enemy",300,300,2,3,120,0)
-
+Zlodey = Soldier("enemy",300,365,2,3,120,3)
+Zlodeyskaya_Grupa.add(Zlodey)
+Zlodey = Soldier("enemy",700,365,2,3,120,3)
+Zlodeyskaya_Grupa.add(Zlodey)
+Zlodey = Soldier("enemy",530,365,2,3,120,300)
+Zlodeyskaya_Grupa.add(Zlodey)
 
 run = True
 #Функции при запуске игры
 while run:
     draw_backroundt()
     player.draw()
-    Zlodey.draw()
+    for Zlodey in Zlodeyskaya_Grupa:
+        Zlodey.draw()
+        Zlodey.update()
 
     #Обновление и отрисовка групп
     Pulia_group.update()
     Grenade_group.update()
+    explosion_group.update()
     Pulia_group.draw(screen)
     Grenade_group.draw(screen)
+    explosion_group.draw(screen)
 
     #Обновление действий игрока
     if player.alive: #Если игрок жив
@@ -324,6 +382,7 @@ while run:
                 grenate_throw = False
             if event.key == pygame.K_m:
                 player.alive = True
+                player.health += 100
                 player.speed = 3
         # KEYUP - отжатие
         # KEYDOWN - нажатие
