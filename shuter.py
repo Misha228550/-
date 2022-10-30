@@ -1,6 +1,7 @@
 import pygame
 import os
 pygame.init()
+import random
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = (SCREEN_WIDTH * 0.8)
@@ -26,13 +27,38 @@ grenate_throw =False
 
 #загрузка картинки
 #ПУЛЯ
-Pula_img = pygame.image.load("img/icons/bullet.png")
+Pula_img = pygame.image.load("img/icons/bullet.png").convert_alpha()
 #Граната
-Granete_igm = pygame.image.load("img/icons/grenade.png")
+Granete_igm = pygame.image.load("img/icons/grenade.png").convert_alpha()
+
+#коробка
+Health_img = pygame.image.load("img/icons/health_box.png").convert_alpha()
+Att_img = pygame.image.load("img/icons/ammo_box.png").convert_alpha()
+grenate_box_png_ep = pygame.image.load("img/icons/grenade_box.png").convert_alpha()
+item_box = {
+    'Health': Health_img,
+    'Ammo': Att_img,
+    'Grenade': grenate_box_png_ep
+}
+
+reolading = pygame.mixer.Sound("sounds/Reload.mp3")
 
 BackRound = (32,74,209) #Заливка фона
+BackRound2 = (0,0,0)
 
 RET = (255,0,0) #Цвет красный
+WITE = (255,255,255)#Цвет белый
+GRENES = (0,255,0)#Зелёный цвет
+BLAKE = (0,0,0)#Чёрный цвет
+
+def draw_text(text,text_col, font, x, y):
+    img = font.render(text, False, text_col)
+    screen.blit(img,(x,y))
+
+#Шрифт
+font = pygame.font.Font('Font/invisiblekillerrus.ttf', 60)
+font2 = pygame.font.Font('Font/minecraft.ttf', 20)
+font3 = pygame.font.Font('Font/minecraft.ttf', 80)
 
 Fon1 = pygame.mixer.Sound("sounds/Fon1.mp3")
 #Fon1.play()
@@ -40,6 +66,11 @@ death1 = pygame.mixer.Sound("sounds/Dead.mp3")
 
 def draw_backroundt():
     screen.fill(BackRound)
+    pygame.draw.line(screen,RET,(0,400),(SCREEN_WIDTH,400),5)
+    pygame.draw.line(screen, RET, (0, 0), (SCREEN_WIDTH, 1000000), 5)
+    pygame.draw.line(screen, RET, (0, 1000000), (SCREEN_WIDTH, 0), 5)
+def draw_backroundt2():
+    screen.fill(BackRound2)
     pygame.draw.line(screen,RET,(0,400),(SCREEN_WIDTH,400),5)
     pygame.draw.line(screen, RET, (0, 0), (SCREEN_WIDTH, 1000000), 5)
     pygame.draw.line(screen, RET, (0, 1000000), (SCREEN_WIDTH, 0), 5)
@@ -56,8 +87,10 @@ class Soldier(pygame.sprite.Sprite):
         self.carector_tipe = carector_tipe
         self.speed=speed
         self.ammo = ammo
+        self.ammo_to_reload = 10
         self.star_ammo = ammo
         self.grenades = grenades
+        self.ai_move_counter = 0
         self.health = 100
         self.max_health = self.health
         self.shoot_cooldown = 0
@@ -67,6 +100,12 @@ class Soldier(pygame.sprite.Sprite):
         self.frame_index=0
         self.action = 0
         self.updata_time = pygame.time.get_ticks()
+
+        #ИИ спец функции
+        self.ai_move_counter = 0
+        self.vision = pygame.Rect(0,0,150,20)
+        self.idling = False
+        self.idle_counter = 0
         Animetion_Types = ["Idle","Run","Jump","Death"]
         for animation in Animetion_Types:
             tenp_list = []
@@ -111,13 +150,50 @@ class Soldier(pygame.sprite.Sprite):
         #pygame.draw.rect(screen,RET,(self.rect.x,self.rect.y, self.rect.width,self.rect.height),3)
 
     def shoot(self):
-        if self.shoot_cooldown == 0 and self.ammo > 0:
+        if self.shoot_cooldown == 0 and self.ammo > 0 and self.ammo_to_reload >0:
             self.shoot_cooldown = 20
             bullet = puli(self.rect.centerx + (self.rect.width * 0.6 * self.direction), self.rect.centery,self.direction)
             Pulia_group.add(bullet)
             self.ammo -=1
+            self.ammo_to_reload -= 1
+
+    def ai(self):
+        #Если игрок
+        if player.alive and self.alive:
+            if self.idling == False and random.randint(1,200) == 1:
+                self.idling = True
+                self.idle_counter = 50
+                self.updata_actiones(0)
+
+            if self.vision.colliderect(player):
+                self.updata_actiones(0)
+                self.shoot()
+
+            if self.idling == False:
+                if self.direction == 1:
+                    ai_moving_right=True
+                else:
+                    ai_moving_right=False
+
+                ai_moving_left = not ai_moving_right
+                self.move(ai_moving_left, ai_moving_right)
 
 
+
+                #Увеличиваем счётчик
+                self.ai_move_counter += 1
+
+                if self.ai_move_counter > TILE_SIZE:
+                    self.ai_move_counter *= -1
+                    self.direction *= -1
+                self.updata_actiones(1)
+
+                self.vision.center = (self.rect.centerx+ 75 * self.direction, self.rect.centery)
+                #pygame.draw.rect(screen, BLAKE, self.vision, 1)
+            else:
+                self.idle_counter -=1
+                if self.idle_counter <= 0:
+                    self.idling = False
 
     def update(self):
         self.updata_animations()
@@ -169,8 +245,56 @@ class Soldier(pygame.sprite.Sprite):
             self.speed = 0
             self.shoot = 0
             self.updata_actiones(3)
-            death1.play(4)
+            if player.health == 0:
+                death1.play(4)
+                self.health = 0
+                self.alive = False
+                self.speed = 0
+                self.shoot = 0
+                self.updata_actiones(3)
+                draw_backroundt2()
+                draw_text("ЛООООООООООХ!!!!", WITE, font3, 10, 200)
+                draw_text("ТЫ СДОХ!", WITE, font3, 100, 300)
+                draw_text("GAME OVER", RET, font3, 100, 400)
 
+class ItemsFlys(pygame.sprite.Sprite):
+    def __init__(self, item_tipe, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.iten_tipe = item_tipe
+        self.image = item_box[self.iten_tipe]
+        self.rect = self.image.get_rect()
+        self.rect.midtop = (x + TILE_SIZE // 2, y+ (TILE_SIZE - self.image.get_height()))
+
+    def update(self):
+        #Проверить столкновение героя с ящиками
+        if pygame.sprite.collide_rect(self, player):
+            if self.iten_tipe == 'Health':
+                player.health += 25
+                if player.health >= player.max_health:
+                    player.health = player.max_health
+            elif self.iten_tipe == 'Ammo':
+                player.ammo += 30
+                if player.ammo >= 100:
+                    player.ammo = 99
+            elif self.iten_tipe == 'Grenade':
+                player.grenades += 1
+            self.kill()
+
+
+class HelthBarr:
+    def __init__(self,x,y,health,max_health):
+        self.x = x
+        self.y = y
+        self.health = health
+        self.max_health = max_health
+
+    def draw(self, health):
+        self.health = health
+        #Соотношение максимального и теущего здоровья
+        ratio = self.health / self.max_health
+        pygame.draw.rect(screen, RET,(self.x, self.y, 150 , 20),0,5)
+        pygame.draw.rect(screen, GRENES, (self.x, self.y, 150 * ratio, 20),0,5)
+        pygame.draw.rect(screen, BLAKE, (self.x-2, self.y-2, 154, 24),4,5)
 
 #Класс пули
 class puli(pygame.sprite.Sprite):
@@ -244,7 +368,7 @@ class Grenade(pygame.sprite.Sprite):
             explosion_group.add(explosion)
             #Нанести урон, если кто-либо в области поражения
             if abs(self.rect.centerx - player.rect.centerx) < TILE_SIZE*2 and abs(self.rect.centery - player.rect.centery) < TILE_SIZE*2:
-                player.health -= 50
+                player.health -= 30
             for Zlodey in Zlodeyskaya_Grupa:
                 if abs(self.rect.centerx - Zlodey.rect.centerx) < TILE_SIZE * 2 and abs(self.rect.centery - Zlodey.rect.centery) < TILE_SIZE * 2:
                     Zlodey.health -= 50
@@ -289,32 +413,57 @@ Zlodeyskaya_Grupa = pygame.sprite.Group()
 Pulia_group = pygame.sprite.Group()
 Grenade_group = pygame.sprite.Group()
 explosion_group = pygame.sprite.Group()
+item_box_group = pygame.sprite.Group()
+
+#Создание ящиков с предметами
+item_box1 = ItemsFlys('Health', 100, 300)
+item_box2 = ItemsFlys('Health', 200, 300)
+item_box3 = ItemsFlys('Grenade', 300, 300)
+item_box4 = ItemsFlys('Ammo', 450, 300)
+item_box5 = ItemsFlys('Grenade', 400, 300)
+item_box6 = ItemsFlys('Ammo', 250, 300)
+item_box_group.add(item_box1, item_box2, item_box3, item_box4, item_box5, item_box6)
+
+
 
 #Персонаж
-player = Soldier("player",200,300,2,3,60,50000)
-Zlodey = Soldier("enemy",300,365,2,3,120,3)
+player = Soldier("player",200,300,1.65,2,60,500000)
+Zlodey = Soldier("enemy",300,365,1.65,2,120,3)
 Zlodeyskaya_Grupa.add(Zlodey)
-Zlodey = Soldier("enemy",700,365,2,3,120,3)
+Zlodey = Soldier("enemy",700,365,1.65,2,120,3)
 Zlodeyskaya_Grupa.add(Zlodey)
-Zlodey = Soldier("enemy",530,365,2,3,120,300)
+Zlodey = Soldier("enemy",530,365,1.65,2,120,300)
 Zlodeyskaya_Grupa.add(Zlodey)
+
+
+health_bar = HelthBarr(10,10,player.health, player.max_health)
 
 run = True
 #Функции при запуске игры
 while run:
     draw_backroundt()
+    health_bar.draw(player.health)
+    draw_text("Сталинград",RET, font, 150, 300)
+    draw_text(f"Патроны:", WITE, font2, 10, 30)
+    for x in  range(player.ammo):
+        screen.blit(Pula_img, (125 + (x*10), 35))
+    draw_text(f"Гранаты: {player.grenades}, убейся ими", WITE, font2, 10, 60)
+    draw_text(f"Твои никчёмные жизни: {player.health}", WITE, font2, 10, 90)
     player.draw()
     for Zlodey in Zlodeyskaya_Grupa:
         Zlodey.draw()
         Zlodey.update()
+        Zlodey.ai()
 
     #Обновление и отрисовка групп
     Pulia_group.update()
     Grenade_group.update()
     explosion_group.update()
+    item_box_group.update()
     Pulia_group.draw(screen)
     Grenade_group.draw(screen)
     explosion_group.draw(screen)
+    item_box_group.draw(screen)
 
     #Обновление действий игрока
     if player.alive: #Если игрок жив
@@ -354,8 +503,9 @@ while run:
                 moving_right = True
             if event.key == pygame.K_SPACE:
                 shoot = True
-            if event.key == pygame.K_r:
-                player.alive = True
+            if event.key == pygame.K_v:
+                player.alive = False
+                player.health = 0
             if event.key == pygame.K_m:
                 player.alive = True
             if event.key == pygame.K_2:
@@ -364,6 +514,14 @@ while run:
                 Pulia_group + 0
             if event.key == pygame.K_w and player.alive:
                 player.jump = True
+            if event.key == pygame.KMOD_SHIFT:
+                player.speed = 5
+            if event.key == pygame.K_ESCAPE:
+                pygame.quit()
+                quit()
+            elif event.key == pygame.K_r and player.ammo_to_reload < 10:
+                player.ammo_to_reload = 10
+                reolading.play()
         elif event.type == pygame.KEYUP:
             if event.key == pygame.K_a:
                 moving_left = False
@@ -373,16 +531,20 @@ while run:
                 shoot = False
             #if event.key == pygame.K_w and player.alive:
                 #player.jump = False
-            if event.key == pygame.K_r:
+            if event.key == pygame.K_v:
                 player.alive = False
                 player.speed = 0
                 player.updata_actiones(3)
+                player.health = 0
+            if event.key == pygame.KMOD_SHIFT:
+                player.speed = 2
             if event.key == pygame.K_2:
                 grenate = False
                 grenate_throw = False
             if event.key == pygame.K_m:
                 player.alive = True
                 player.health += 100
+                player.max_health += 100
                 player.speed = 3
         # KEYUP - отжатие
         # KEYDOWN - нажатие
